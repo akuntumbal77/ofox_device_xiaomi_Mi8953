@@ -30,7 +30,7 @@
 #     baris ⚠️ di pesan yang sama.
 # ============================================================================
 
-name: ofox-mi8953-12.1
+name: ofox-mi8953-12.1-realtime
 
 on:
   workflow_dispatch:
