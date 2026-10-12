@@ -1,0 +1,540 @@
+# ============================================================================
+# ofox-mi8953-12.1 - Build OrangeFox Recovery (fox_12.1) untuk Xiaomi Mi8953
+# ----------------------------------------------------------------------------
+# PRINSIP: workflow ini build DARI REPO INI.
+#   - Device tree di-ambil lewat actions/checkout (repo ini sendiri),
+#     lalu ditempatkan ke device/xiaomi/Mi8953 di dalam source OrangeFox.
+#     TIDAK ada step clone device tree dari repo lain.
+#   - Clone yang terjadi hanya untuk SOURCE build OrangeFox (manifest +
+#     bootable/recovery + vendor/recovery) memakai script resmi
+#     gitlab.com/OrangeFox/sync - itu wajib, karena device tree saja
+#     tidak bisa di-build tanpa source recovery-nya.
+#   - Referensi: ofox-vince-12.1-1.yml (hanya referensi, target utama
+#     tetap Mi8953 - unified: mido / vince / ysl).
+# ============================================================================
+
+name: ofox-mi8953-12.1
+
+on:
+  workflow_dispatch:
+    inputs:
+      maintainer:
+        description: "Nama maintainer (OF_MAINTAINER) yang tampil di recovery"
+        required: false
+        default: "RenzAlt"
+      target:
+        description: "Make target"
+        required: false
+        default: "recoveryimage"
+      use_latest_magisk:
+        description: "Bundle Magisk terbaru ke zip installer"
+        type: boolean
+        required: false
+        default: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # ==== Sinkronisasi source OrangeFox (script resmi OrangeFox/sync) ====
+  FOX_SYNC_REPO: "https://gitlab.com/OrangeFox/sync.git"
+  FOX_BRANCH: "fox_12.1"                       # -> sync script: --branch 12.1
+  SYNC_PATH: "${{ github.workspace }}/fox_12.1"
+
+  # ==== Device tree = REPO INI (hasil actions/checkout, bukan clone) ====
+  DT_PATH: "${{ github.workspace }}/device_tree"
+  DT_DEST: "device/xiaomi/Mi8953"
+
+  # ==== Target build: Mi8953 (unified: mido / vince / ysl) ====
+  DEVICE: "Mi8953"
+  LUNCH_TARGET: "ofox_Mi8953-eng"
+  EXPECTED_PRODUCT: "ofox_Mi8953"
+  OF_BUILD_TYPE: "Unofficial-CI"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      # =====================================================================
+      # Ruang disk: fox_12.1 butuh ~45GB, runner GitHub cuma punya ~20GB.
+      # Dua action dibuang-bersih seperti workflow referensi.
+      # =====================================================================
+      - name: Free Disk Space (Ubuntu)
+        uses: insightsengineering/disk-space-reclaimer@v1
+        with:
+          tools-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          swap-storage: true
+          docker-images: true
+
+      - name: Free Disk Space
+        uses: endersonmenezes/free-disk-space@v3
+        with:
+          remove_android: true
+          remove_dotnet: true
+          remove_haskell: true
+          remove_tool_cache: true
+          remove_swap: true
+          remove_packages: "azure-cli google-cloud-cli microsoft-edge-stable google-chrome-stable firefox postgresql* temurin-* *llvm* mysql* dotnet-sdk-*"
+          remove_packages_one_command: true
+          remove_folders: "/usr/share/swift /usr/share/miniconda /usr/share/az* /usr/local/lib/node_modules /usr/local/share/chromium /usr/local/share/powershell /usr/local/julia /usr/local/aws-cli /usr/local/aws-sam-cli /usr/share/gradle"
+          rm_cmd: "rm"
+          rmz_version: "3.1.1"
+          testing: false
+
+      - name: Check Disk Space (after reclaim)
+        run: df -h
+
+      - name: Set Swap Space
+        uses: pierotofy/set-swap-space@master
+        with:
+          swap-size-gb: 2
+
+      # =====================================================================
+      # CHECKOUT REPO INI - inilah device tree yang dipakai build.
+      # Hasilnya ada di ${{ github.workspace }}/device_tree, lalu di-copy
+      # ke device/xiaomi/Mi8953 pada step "Place Device Tree".
+      # =====================================================================
+      - name: Checkout Device Tree (repo ini)
+        uses: actions/checkout@v4
+        with:
+          path: device_tree
+
+      - name: Show Device Tree Revision
+        run: |
+          echo "== Device tree dari repo ini =="
+          git -C "${{ env.DT_PATH }}" log -1 --format='%h %s (%an, %ad)' --date=short || true
+          git -C "${{ env.DT_PATH }}" remote -v || true
+          echo "== Lunch target yang akan dipakai: ${{ env.LUNCH_TARGET }} =="
+
+      - name: Notify Telegram - Build Started
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then
+            echo "TG_BOT_TOKEN/TG_CHAT_ID belum di-set di Secrets - skip notifikasi."
+            exit 0
+          fi
+          BUILD_DATE=$(date +"%Y-%m-%d %H:%M:%S UTC")
+          curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
+            -d parse_mode="Markdown" \
+            -d text="🦊 *OrangeFox Build Started*
+          📱 *Device:* Xiaomi Mi8953 unified (mido/vince/ysl)
+          🎯 *Lunch:* \`${{ env.LUNCH_TARGET }}\`
+          🌿 *Branch:* \`${{ env.FOX_BRANCH }}\`
+          🕒 *Time:* ${BUILD_DATE}
+          🔗 [GitHub Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+      # =====================================================================
+      # Dependency: jq (query API Magisk) + aria2 (download), selain paket
+      # build Android standar.
+      # =====================================================================
+      - name: Install Packages
+        run: |
+          sudo apt-get update -y 2>&1 | tee -a /tmp/full_build.log
+          sudo apt-get install -y --no-install-recommends \
+            git curl wget zip unzip cpio bzip2 zstd lzop rsync patch file \
+            make python3 bc flex bison gperf gawk \
+            libxml2-utils xsltproc libssl-dev \
+            build-essential ccache jq aria2 2>&1 | tee -a /tmp/full_build.log
+
+      - name: Setup Repo Tool
+        run: |
+          git config --global user.name "ofox-ci"
+          git config --global user.email "build@ofox.local"
+          git config --global color.ui false
+          mkdir -p ~/bin
+          curl -o ~/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+          chmod a+x ~/bin/repo
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Notify Telegram - Syncing Sources
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then exit 0; fi
+          curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
+            -d parse_mode="Markdown" \
+            -d text="🔄 *Syncing OrangeFox Sources...*
+          📦 Script: \`OrangeFox/sync\` (orangefox_sync.sh)
+          🌿 Branch: \`${{ env.FOX_BRANCH }}\`
+          ⚙️ Bagian paling lama - sumber AOSP/recovery-nya, BUKAN device tree (device tree dari repo ini)"
+
+      # =====================================================================
+      # SYNC SOURCE OrangeFox memakai script resminya (OrangeFox/sync).
+      # Script ini: repo init minimal-manifest TWRP (twrp-12.1) -> patch
+      # build system -> clone bootable/Recovery & vendor/recovery OrangeFox.
+      # Device tree TIDAK disentuh di sini (lihat step berikutnya).
+      # SYNC_BRANCH diturunkan dari FOX_BRANCH (fox_12.1 -> 12.1).
+      # =====================================================================
+      - name: Sync OrangeFox Sources (orangefox_sync.sh)
+        run: |
+          set -e
+          mkdir -p "${{ env.SYNC_PATH }}"
+          cd "$HOME"
+
+          git clone --depth=1 "${{ env.FOX_SYNC_REPO }}" ofox-sync-tool
+          cd ofox-sync-tool
+
+          SYNC_BRANCH=$(echo "${{ env.FOX_BRANCH }}" | cut -d_ -f2)
+          echo "SYNC_BRANCH=$SYNC_BRANCH" | tee -a "$GITHUB_ENV"
+
+          bash orangefox_sync.sh --branch "$SYNC_BRANCH" --path "${{ env.SYNC_PATH }}" 2>&1 | tee -a /tmp/full_build.log
+
+      - name: Check Disk Space (after sync)
+        run: df -h
+
+      # =====================================================================
+      # TEMPATKAN DEVICE TREE DARI REPO INI ke device/xiaomi/Mi8953.
+      # Ini pengganti "clone device tree" di workflow referensi: isinya
+      # murni hasil checkout repo ini (BoardConfig.mk, recovery/root,
+      # prebuilt kernel, vendorsetup.sh, dst).
+      # =====================================================================
+      - name: Place Device Tree (dari repo ini)
+        run: |
+          set -e
+          DEST="${{ env.SYNC_PATH }}/${{ env.DT_DEST }}"
+          echo "== Menyalin device tree dari checkout repo ini -> $DEST =="
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          rsync -a --exclude='.git' --exclude='.github' "${{ env.DT_PATH }}/" "$DEST/"
+
+          echo "== Verifikasi =="
+          test -f "$DEST/BoardConfig.mk" || { echo "BoardConfig.mk tidak ada"; exit 1; }
+          test -f "$DEST/ofox_Mi8953.mk" || { echo "ofox_Mi8953.mk tidak ada"; exit 1; }
+          test -f "$DEST/vendorsetup.sh" || { echo "vendorsetup.sh tidak ada"; exit 1; }
+          test -f "$DEST/prebuilt/Image.gz-dtb" || { echo "prebuilt kernel tidak ada"; exit 1; }
+
+          echo "-- PRODUCT_MAKEFILES --"
+          grep -A1 PRODUCT_MAKEFILES "$DEST/AndroidProducts.mk"
+          echo "-- PRODUCT_NAME --"
+          grep -n "^PRODUCT_NAME" "$DEST/ofox_Mi8953.mk"
+          echo "-- Isi direktori --"
+          ls -la "$DEST"
+
+      # =====================================================================
+      # Magisk terbaru - persis logika workflow referensi: query API GitHub
+      # rilis terbaru, download .apk, rename jadi .zip (file .apk Magisk
+      # juga file zip), dipakai lewat FOX_USE_SPECIFIC_MAGISK_ZIP saat build.
+      # =====================================================================
+      - name: Download Latest Magisk
+        if: ${{ inputs.use_latest_magisk }}
+        run: |
+          set -e
+          mkdir -p "$HOME/Magisk"
+          cd "$HOME/Magisk"
+          echo "== Cari URL rilis Magisk terbaru =="
+          # "|| true" di ujung pipeline: shell CI memakai pipefail, dan
+          # "jq | head -1" bisa kena SIGPIPE walau hasilnya valid
+          LATEST_MAGISK_URL="$(curl -sL https://api.github.com/repos/topjohnwu/Magisk/releases/latest | jq -r '.assets[] | select(.name | test("Magisk-v.*\\.apk$")) | .browser_download_url' | head -1 || true)"
+          if [ -z "$LATEST_MAGISK_URL" ] || [ "$LATEST_MAGISK_URL" = "null" ]; then
+            echo "Gagal menemukan rilis Magisk terbaru, lanjut tanpa Magisk custom"
+            exit 0
+          fi
+          echo "URL: $LATEST_MAGISK_URL"
+          aria2c "$LATEST_MAGISK_URL" || wget "$LATEST_MAGISK_URL"
+          for f in Magisk*.apk; do
+            [ -e "$f" ] || continue
+            mv "$f" "${f%.apk}.zip"
+          done
+          ls -la "$HOME/Magisk"
+          MAGISK_ZIP=$(ls "$HOME/Magisk"/Magisk*.zip 2>/dev/null | head -1 || true)
+          if [ -n "$MAGISK_ZIP" ]; then
+            echo "MAGISK_ZIP=$MAGISK_ZIP" >> "$GITHUB_ENV"
+          fi
+
+      - name: Check Disk Space (before compile)
+        run: df -h
+
+      - name: Notify Telegram - Compiling
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then exit 0; fi
+          curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
+            -d parse_mode="Markdown" \
+            -d text="⚙️ *Compiling OrangeFox...*
+          🎯 *Target:* \`${{ env.LUNCH_TARGET }}\` / \`${{ inputs.target }}\`
+          🧵 *Threads:* $(nproc --all) cores
+          🔨 Build sedang berjalan, harap tunggu..."
+
+      - name: Start Disk Monitor (background)
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          (
+            ALERTED=false
+            while true; do
+              echo "=== $(date +%H:%M:%S) ===" >> /tmp/disk_monitor.log
+              df -h >> /tmp/disk_monitor.log
+              echo "" >> /tmp/disk_monitor.log
+
+              USAGE=$(df / | tail -1 | awk '{print $5}' | tr -d '%')
+              AVAIL=$(df -h / | tail -1 | awk '{print $4}')
+
+              if [ "$USAGE" -ge 85 ] && [ "$ALERTED" = false ]; then
+                ALERTED=true
+                if [ -n "${TG_BOT_TOKEN:-}" ] && [ -n "${TG_CHAT_ID:-}" ]; then
+                  curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+                    -d chat_id="${TG_CHAT_ID}" \
+                    -d parse_mode="Markdown" \
+                    -d text="⚠️ *Disk Space Kritis!*
+              💾 Terpakai: ${USAGE}% (sisa: ${AVAIL})
+              🕒 $(date +%H:%M:%S)
+              📱 Build OrangeFox Mi8953 masih jalan, kemungkinan gagal karena disk penuh."
+                fi
+              fi
+
+              sleep 120
+            done
+          ) &
+          echo "DISK_MONITOR_PID=$!" >> $GITHUB_ENV
+
+      # =====================================================================
+      # BUILD - mengikuti alur build.sh resmi OrangeFox:
+      #   source envsetup.sh -> lunch -> mka <target>
+      # Var OrangeFox di-export LANGSUNG di sini (sebelum envsetup) sebagai
+      # jaminan, karena guard vendorsetup.sh (BASH_SOURCE/BASH_ARGV) tidak
+      # selalu kepicu di environment CI. Nilainya sama dengan vendorsetup.sh
+      # di device tree repo ini.
+      #
+      # lunch pakai produk buatan repo ini: ofox_Mi8953-eng
+      # (orangefox.mk memangkas prefix utk FOX_DEVICE_MODEL, dan script
+      #  OrangeFox memakai `cut -d_ -f2` -> tetap dapat "Mi8953", jadi
+      #  nama output & pengecekan installer tetap: ...-Mi8953.img/.zip)
+      # =====================================================================
+      - name: Start Build (with log)
+        working-directory: ${{ env.SYNC_PATH }}
+        env:
+          KBUILD_BUILD_USER: "ofox"
+          KBUILD_BUILD_HOST: "ci"
+        run: |
+          mkdir -p logs
+          set -o pipefail
+
+          export ALLOW_MISSING_DEPENDENCIES=true
+          export FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER=1
+          export LC_ALL=C
+
+          # Building Tip I resmi: export FOX_BUILD_DEVICE sebelum build
+          export FOX_BUILD_DEVICE="${{ env.DEVICE }}"
+
+          # Identitas build
+          export OF_MAINTAINER="${{ inputs.maintainer }}"
+          export FOX_BUILD_TYPE="${{ env.OF_BUILD_TYPE }}"
+
+          # Fallback eksplisit (jangan cuma andalkan guard vendorsetup.sh)
+          export OF_PATCH_AVB20=1
+          export FOX_RECOVERY_SYSTEM_PARTITION="/dev/block/mapper/system"
+          export FOX_RECOVERY_VENDOR_PARTITION="/dev/block/mapper/vendor"
+          export OF_ENABLE_ALL_PARTITION_TOOLS=1
+          export OF_FORCE_PREBUILT_KERNEL=1
+
+          if [ -n "${MAGISK_ZIP:-}" ]; then
+            export FOX_USE_SPECIFIC_MAGISK_ZIP="$MAGISK_ZIP"
+          fi
+
+          echo "== Build vars =="
+          echo "OF_MAINTAINER=$OF_MAINTAINER"
+          echo "FOX_BUILD_TYPE=$FOX_BUILD_TYPE"
+          echo "FOX_BUILD_DEVICE=$FOX_BUILD_DEVICE"
+          echo "MAGISK_ZIP=${MAGISK_ZIP:-<default>}"
+
+          set +e
+          . build/envsetup.sh
+          set -e
+
+          if ! type lunch &>/dev/null; then
+            echo "❌ lunch tidak ditemukan - envsetup gagal" | tee -a /tmp/full_build.log
+            exit 1
+          fi
+
+          if ! lunch "${{ env.LUNCH_TARGET }}"; then
+            echo "❌ lunch ${{ env.LUNCH_TARGET }} gagal" | tee -a /tmp/full_build.log
+            exit 1
+          fi
+
+          echo "TARGET_PRODUCT=$TARGET_PRODUCT" | tee -a /tmp/full_build.log
+          echo "TARGET_DEVICE=$TARGET_DEVICE" | tee -a /tmp/full_build.log
+
+          if [ "$TARGET_PRODUCT" != "${{ env.EXPECTED_PRODUCT }}" ]; then
+            echo "❌ TARGET_PRODUCT salah: $TARGET_PRODUCT (diharapkan ${{ env.EXPECTED_PRODUCT }})" | tee -a /tmp/full_build.log
+            exit 1
+          fi
+
+          echo "== Fox env tersimpan di /tmp/$TARGET_DEVICE/fox_env.sh =="
+          ls -la "/tmp/$TARGET_DEVICE/fox_env.sh" 2>/dev/null || true
+
+          mka -j$(nproc --all) "${{ inputs.target }}" 2>&1 | tee logs/build.txt | tee -a /tmp/full_build.log
+
+      - name: Stop Disk Monitor & Save Log
+        if: always()
+        run: |
+          kill "$DISK_MONITOR_PID" 2>/dev/null || true
+          echo "=== FINAL $(date +%H:%M:%S) ===" >> /tmp/disk_monitor.log
+          df -h >> /tmp/disk_monitor.log
+          mkdir -p "${{ env.SYNC_PATH }}/debug-info"
+          cp /tmp/disk_monitor.log "${{ env.SYNC_PATH }}/debug-info/disk_monitor.log" 2>/dev/null || true
+
+      - name: Check Disk Space (after compile)
+        if: always()
+        run: df -h
+
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ofox-mi8953-build-log
+          path: ${{ env.SYNC_PATH }}/logs/build.txt
+          if-no-files-found: warn
+
+      - name: Collect Debug Info
+        if: always()
+        working-directory: ${{ env.SYNC_PATH }}
+        run: |
+          mkdir -p debug-info
+          OUT=out/target/product/${{ env.DEVICE }}/recovery/root/system/etc
+          cp -v "$OUT/twrp.flags" debug-info/twrp.flags.final 2>/dev/null || echo "twrp.flags.final: tidak ditemukan" > debug-info/twrp.flags.final
+          cp -v "$OUT/recovery.fstab" debug-info/recovery.fstab.final 2>/dev/null || echo "recovery.fstab.final: tidak ditemukan" > debug-info/recovery.fstab.final
+          cp -v "device/${{ env.DT_DEST }}/BoardConfig.mk" debug-info/BoardConfig.mk.used 2>/dev/null || true
+          cp -v "device/${{ env.DT_DEST }}/vendorsetup.sh" debug-info/vendorsetup.sh.used 2>/dev/null || true
+          {
+            echo "Built at: $(date)"
+            echo "TARGET_PRODUCT=ofox_${{ env.DEVICE }}"
+            echo "FOX_BRANCH=${{ env.FOX_BRANCH }}"
+            echo "DT_REVISION=$(git -C "${{ env.DT_PATH }}" rev-parse --short HEAD 2>/dev/null || echo n/a)"
+          } > debug-info/build-meta.txt
+
+      - name: Upload Debug Info
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ofox-mi8953-debug-info
+          path: ${{ env.SYNC_PATH }}/debug-info
+          if-no-files-found: warn
+
+      - name: Upload recovery.img
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ofox-mi8953-recovery
+          path: ${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/recovery.img
+
+      - name: Upload OrangeFox image
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ofox-mi8953-ofox-img
+          path: ${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/OrangeFox*.img
+          if-no-files-found: warn
+
+      - name: Upload OrangeFox zip
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ofox-mi8953-zip
+          path: ${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/OrangeFox*.zip
+          if-no-files-found: warn
+
+      - name: Notify Telegram - Build Success
+        if: success()
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then
+            echo "Telegram tidak di-set - skip notifikasi."
+            exit 0
+          fi
+          BUILD_DATE=$(date +"%Y-%m-%d %H:%M:%S UTC")
+          IMG_SIZE=$(du -sh "${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/recovery.img" 2>/dev/null | cut -f1 || echo "N/A")
+          DISK_FINAL=$(df -h / | tail -1 | awk '{print "Terpakai "$5" (sisa "$4")"}')
+          curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
+            -d parse_mode="Markdown" \
+            -d text="✅ *OrangeFox Build Sukses!*
+          📱 *Device:* Xiaomi Mi8953 unified (mido/vince/ysl)
+          🎯 *Produk:* \`ofox_${{ env.DEVICE }}\`
+          🌿 *Branch:* \`${{ env.FOX_BRANCH }}\`
+          📦 *Image Size:* ${IMG_SIZE}
+          💾 *Disk saat selesai:* ${DISK_FINAL}
+          🕒 *Selesai:* ${BUILD_DATE}
+          📥 Artifacts: \`recovery.img\` • \`OrangeFox-*.zip\` • \`build-log\`
+          🔗 [Download](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+
+      - name: Send Disk Monitor Log to Telegram on Failure
+        if: failure()
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then exit 0; fi
+          if [ -f /tmp/disk_monitor.log ]; then
+            curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
+              -F chat_id="${TG_CHAT_ID}" \
+              -F document=@/tmp/disk_monitor.log \
+              -F caption="💾 Disk usage log tiap 2 menit selama build (OrangeFox Mi8953, FAILED)"
+          fi
+
+      - name: Upload Full Log to Telegram on Failure
+        if: failure()
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then exit 0; fi
+          mkdir -p "${{ env.SYNC_PATH }}/logs"
+          cat /tmp/full_build.log >> "${{ env.SYNC_PATH }}/logs/build.txt" 2>/dev/null || true
+
+          LOG_FILE="${{ env.SYNC_PATH }}/logs/build.txt"
+          [ -f "$LOG_FILE" ] || LOG_FILE="/tmp/full_build.log"
+          [ -f "$LOG_FILE" ] || exit 0
+
+          FILE_SIZE=$(du -m "$LOG_FILE" 2>/dev/null | cut -f1 || true)
+          [ -n "$FILE_SIZE" ] || FILE_SIZE=0
+          if [ "$FILE_SIZE" -gt 45 ]; then
+            gzip -kf "$LOG_FILE"
+            curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
+              -F chat_id="${TG_CHAT_ID}" \
+              -F document=@"${LOG_FILE}.gz" \
+              -F caption="📄 Full build log (compressed) - OrangeFox Mi8953 (FAILED)"
+          else
+            curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
+              -F chat_id="${TG_CHAT_ID}" \
+              -F document=@"${LOG_FILE}" \
+              -F caption="📄 Full build log - OrangeFox Mi8953 (FAILED)"
+          fi
+
+      - name: Notify Telegram - Build Failed
+        if: failure()
+        env:
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: |
+          if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then exit 0; fi
+          BUILD_DATE=$(date +"%Y-%m-%d %H:%M:%S UTC")
+          DISK_FINAL=$(df -h / | tail -1 | awk '{print "Terpakai "$5" (sisa "$4")"}' 2>/dev/null || echo "N/A")
+          curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TG_CHAT_ID}" \
+            -d parse_mode="Markdown" \
+            -d text="❌ *OrangeFox Build GAGAL!*
+          📱 *Device:* Xiaomi Mi8953 unified (mido/vince/ysl)
+          🎯 *Lunch:* \`${{ env.LUNCH_TARGET }}\`
+          🌿 *Branch:* \`${{ env.FOX_BRANCH }}\`
+          💾 *Disk saat gagal:* ${DISK_FINAL}
+          🕒 *Waktu:* ${BUILD_DATE}
+          📄 Full log & \`disk_monitor.log\` sudah dikirim/ada di artifacts.
+          🔗 [Lihat Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"

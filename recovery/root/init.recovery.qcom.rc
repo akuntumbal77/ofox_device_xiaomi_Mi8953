@@ -1,0 +1,34 @@
+#
+# Copyright (C) 2021 The Android Open Source Project
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Determine device
+on init
+    exec u:r:recovery:s0 -- /system/bin/set-device-props.sh
+
+# DT2W
+on init
+    write /proc/sys/dev/xiaomi_msm8953_touchscreen/enable_dt2w 1
+
+# Fstab
+on init
+    exec u:r:recovery:s0 -- /system/bin/detect-dynamic-partitions.sh
+
+on fs
+    wait /dev/block/platform/soc/${ro.boot.bootdevice}
+    symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+
+on boot
+    start health-hal-2-1
+
+# HVDCP
+service hvdcp_opti /system/bin/hvdcp_opti
+    user root
+    group root
+    disabled
+    seclabel u:r:recovery:s0
+
+on boot
+    start hvdcp_opti
