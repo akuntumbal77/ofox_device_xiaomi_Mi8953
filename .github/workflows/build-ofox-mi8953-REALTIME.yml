@@ -1,33 +1,35 @@
 # ============================================================================
-# ofox-mi8953-12.1 - Build OrangeFox Recovery (fox_12.1) untuk Xiaomi Mi8953
+# ofox-mi8953-12.1 - Build OrangeFox Recovery (fox_12.1) for Xiaomi Mi8953
 # ----------------------------------------------------------------------------
-# PRINSIP: workflow ini build DARI REPO INI.
-#   - Device tree di-ambil lewat actions/checkout (repo ini sendiri),
-#     lalu ditempatkan ke device/xiaomi/Mi8953 di dalam source OrangeFox.
-#     TIDAK ada step clone device tree dari repo lain.
-#   - Clone yang terjadi hanya untuk SOURCE build OrangeFox (manifest +
-#     bootable/recovery + vendor/recovery) memakai script resmi
-#     gitlab.com/OrangeFox/sync - itu wajib, karena device tree saja
-#     tidak bisa di-build tanpa source recovery-nya.
-#   - Referensi: ofox-vince-12.1-1.yml (hanya referensi, target utama
-#     tetap Mi8953 - unified: mido / vince / ysl).
+# PRINCIPLE: this workflow builds FROM THIS REPO.
+#   - The device tree is taken via actions/checkout (this repo itself),
+#     then placed into device/xiaomi/Mi8953 inside the OrangeFox source.
+#     There is NO step that clones a device tree from another repo.
+#   - The only cloning that happens is for the OrangeFox build SOURCE
+#     (manifest + bootable/recovery + vendor/recovery) using the official
+#     gitlab.com/OrangeFox/sync script - this is required, because a device
+#     tree alone cannot be built without the recovery source.
+#   - Reference: ofox-vince-12.1-1.yml (reference only, the main target
+#     is still Mi8953 - unified: mido / vince / ysl).
 #
-# NOTIFIKASI TELEGRAM -> CUMA SATU PESAN, REALTIME:
-#   - Step pertama ("Set up job") membuat /tmp/tgnotify.sh lalu MENGIRIM
-#     SATU pesan Telegram (header + daftar semua job) ke chat.
-#   - Tiap job dibungkus 3 step:
-#       "Notify <job>"            -> baris 🔄 muncul + timer mulai jalan
-#       <job>                     -> pekerjaannya
-#       "Notify <job> (selesai)"  -> ✅ durasi (detik/menit/jam)
-#                                    ❌ durasi + build log diupload ke Telegram
-#   - Pesan yang SAMA di-edit terus-menerus oleh ticker background (3 detik),
-#     dan step compile meng-edit tiap 1 detik -> durasi BERJALAN REALTIME.
-#   - Sukses/Gagal ditutup baris verdict (✅ BUILD SUCCESS / ❌ BUILD FAILED)
-#     di pesan yang sama.
-#   - Step "sendMessage" lama (Build Started / Syncing / Compiling / Success /
-#     Failed) tidak ada lagi -> semuanya jadi baris di 1 pesan itu.
-#   - Disk monitor yang tadinya kirim pesan terpisah sekarang cuma menambah
-#     baris ⚠️ di pesan yang sama.
+# TELEGRAM NOTIFICATIONS -> ONLY ONE MESSAGE, REALTIME:
+#   - The first step ("Set up job") creates /tmp/tgnotify.sh and SENDS
+#     ONE Telegram message (header + list of all jobs) to the chat.
+#   - Each job is wrapped in 3 steps:
+#       "Notify <job>"            -> 🔄 line appears + timer starts
+#       <job>                     -> the actual work
+#       "Notify <job> (done)"     -> ✅ duration (seconds/minutes/hours)
+#                                    ❌ duration + build log uploaded to Telegram
+#   - The SAME message is edited continuously by a background ticker
+#     (3 seconds), and the compile step edits it every 1 second ->
+#     the RUNNING duration is shown in REALTIME.
+#   - Success/Failure is closed with a verdict line (✅ BUILD SUCCESS /
+#     ❌ BUILD FAILED) in the same message.
+#   - The old "sendMessage" steps (Build Started / Syncing / Compiling /
+#     Success / Failed) are gone -> everything is now a line in that one
+#     message.
+#   - The disk monitor, which used to send a separate message, now only
+#     adds a ⚠️ line to the same message.
 # ============================================================================
 
 name: ofox-mi8953-12.1-realtime
@@ -36,7 +38,7 @@ on:
   workflow_dispatch:
     inputs:
       maintainer:
-        description: "Nama maintainer (OF_MAINTAINER) yang tampil di recovery"
+        description: "Maintainer name (OF_MAINTAINER) shown in the recovery"
         required: false
         default: "Rahmat Sobrian"
       target:
@@ -44,7 +46,7 @@ on:
         required: false
         default: "recoveryimage"
       use_latest_magisk:
-        description: "Bundle Magisk terbaru ke zip installer"
+        description: "Bundle the latest Magisk into the installer zip"
         type: boolean
         required: false
         default: true
@@ -54,12 +56,12 @@ defaults:
     shell: bash
 
 env:
-  # ==== Sinkronisasi source OrangeFox (script resmi OrangeFox/sync) ====
+  # ==== OrangeFox source sync (official OrangeFox/sync script) ====
   FOX_SYNC_REPO: "https://gitlab.com/OrangeFox/sync.git"
   FOX_BRANCH: "fox_12.1"                       # -> sync script: --branch 12.1
   SYNC_PATH: "${{ github.workspace }}/fox_12.1"
 
-  # ==== Device tree = REPO INI (hasil actions/checkout, bukan clone) ====
+  # ==== Device tree = THIS REPO (actions/checkout result, not a clone) ====
   DT_PATH: "${{ github.workspace }}/device_tree"
   DT_DEST: "device/xiaomi/Mi8953"
 
@@ -76,8 +78,8 @@ jobs:
 
     steps:
       # =====================================================================
-      # SET UP JOB: bikin helper /tmp/tgnotify.sh + KIRIM SATU PESAN TELEGRAM.
-      # Semua notifikasi berikutnya cuma mengedit pesan yang sama.
+      # SET UP JOB: create the /tmp/tgnotify.sh helper + SEND ONE TELEGRAM MESSAGE.
+      # All later notifications only edit that same message.
       # =====================================================================
       - name: Set up job
         id: setup
@@ -87,8 +89,8 @@ jobs:
         run: |
           cat > /tmp/tgnotify.sh <<'TGEOF'
           #!/usr/bin/env bash
-          # tgnotify.sh - SEMUA notifikasi workflow lewat SATU pesan Telegram
-          # yang di-edit realtime sampai job selesai.
+          # tgnotify.sh - ALL workflow notifications go through ONE Telegram
+          # message that is edited in realtime until the job finishes.
           STATE=/tmp/tg_state.tsv
           MSGID=/tmp/tg_msg_id
           LOCK=/tmp/tg_notify.lock
@@ -130,8 +132,8 @@ jobs:
             out="$out
           📱 Device: Xiaomi Mi8953 unified (mido/vince/ysl)
           🎯 Lunch: ${LUNCH_TARGET:-ofox_Mi8953-eng}
-          🕒 Mulai: ${TG_START_TIME:-n/a}
-          📌 Status: $( [ -f "$PHASE" ] && cat "$PHASE" || printf 'berjalan...' )"
+          🕒 Started: ${TG_START_TIME:-n/a}
+          📌 Status: $( [ -f "$PHASE" ] && cat "$PHASE" || printf 'running...' )"
             if [ -f "$WARN" ]; then
               while IFS= read -r w; do
                 [ -n "$w" ] || continue
@@ -179,10 +181,10 @@ jobs:
               mid=$(printf '%s' "$resp" | grep -o '"message_id":[0-9]*' | head -1 | cut -d: -f2 || true)
               if [ -n "$mid" ]; then
                 printf '%s' "$mid" >"$MSGID"
-                printf 'tgnotify: pesan Telegram dibuat (message_id=%s)\n' "$mid"
+                printf 'tgnotify: Telegram message created (message_id=%s)\n' "$mid"
                 return 0
               fi
-              printf 'tgnotify: sendMessage gagal: %s\n' "$resp"
+              printf 'tgnotify: sendMessage failed: %s\n' "$resp"
               return 0
             fi
             i=0
@@ -311,16 +313,16 @@ jobs:
               fi
             done
             if [ -z "$f" ]; then
-              printf 'tgnotify: belum ada log untuk diupload (%s)\n' "$why"
+              printf 'tgnotify: no log available to upload yet (%s)\n' "$why"
               return 0
             fi
             size=$(du -m "$f" 2>/dev/null | cut -f1 || true)
             case "$size" in ''|*[!0-9]*) size=0 ;; esac
-            cap="📄 Build log OrangeFox Mi8953 - gagal di: ${why}"
+            cap="📄 OrangeFox Mi8953 build log - failed at: ${why}"
             if [ "$size" -gt 45 ]; then
               if gzip -kf "$f"; then
                 f="${f}.gz"
-                cap="📄 Build log OrangeFox Mi8953 (kompresi) - gagal di: ${why}"
+                cap="📄 OrangeFox Mi8953 build log (compressed) - failed at: ${why}"
               fi
             fi
             curl -s -m 180 -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
@@ -328,7 +330,7 @@ jobs:
               -F "document=@${f}" \
               -F "caption=${cap}" >/dev/null 2>&1 || true
             : >"$LOGFLAG"
-            printf 'tgnotify: log terkirim ke Telegram: %s\n' "$f"
+            printf 'tgnotify: log sent to Telegram: %s\n' "$f"
             return 0
           }
 
@@ -345,7 +347,7 @@ jobs:
                   "$(hms "$dur")" "${e1:-N/A}" "${e2:-N/A}" >"$VERDICT"
                 ;;
               failure)
-                printf '❌ BUILD FAILED - total %s\n💾 Disk: %s\n📄 Build log sudah dikirim ke Telegram / ada di artifacts' \
+                printf '❌ BUILD FAILED - total %s\n💾 Disk: %s\n📄 Build log was sent to Telegram / is available in artifacts' \
                   "$(hms "$dur")" "${e2:-N/A}" >"$VERDICT"
                 ;;
               cancelled)
@@ -432,13 +434,13 @@ jobs:
           TGEOF
           chmod +x /tmp/tgnotify.sh
           printf "TG_START_TIME='%s'\nTG_RUN_URL='%s'\nLUNCH_TARGET='%s'\nFOX_BRANCH='%s'\nTG_START_EPOCH='%s'\n" \
-            "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
+            "$(TZ=Asia/Jakarta date +'%Y-%m-%d %H:%M:%S WIB')" \
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             "${{ env.LUNCH_TARGET }}" "${{ env.FOX_BRANCH }}" "$(date +%s)" > /tmp/tg_meta.env
-          bash /tmp/tgnotify.sh phase "🚀 Build started - menyiapkan environment" || true
+          bash /tmp/tgnotify.sh phase "Build started - setting the environment" || true
           bash /tmp/tgnotify.sh begin "Set up job" || true
 
-      - name: Notify Set up job (selesai)
+      - name: Notify Set up job (done)
         if: ${{ always() && !cancelled() && steps.setup.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -446,8 +448,8 @@ jobs:
         run: bash /tmp/tgnotify.sh end "Set up job" "${{ steps.setup.outcome }}" || true
 
       # =====================================================================
-      # Ruang disk: fox_12.1 butuh ~45GB, runner GitHub cuma punya ~20GB.
-      # Dua action dibuang-bersih seperti workflow referensi.
+      # Disk space: fox_12.1 needs ~45GB, the GitHub runner only has ~20GB.
+      # Two clean-up actions are used, like the reference workflow.
       # =====================================================================
       - name: Notify Free Disk Space 1
         env:
@@ -467,7 +469,7 @@ jobs:
           swap-storage: true
           docker-images: true
 
-      - name: Notify Free Disk Space 1 (selesai)
+      - name: Notify Free Disk Space 1 (done)
         if: ${{ always() && !cancelled() && steps.free1.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -496,7 +498,7 @@ jobs:
           rmz_version: "3.1.1"
           testing: false
 
-      - name: Notify Free Disk Space 2 (selesai)
+      - name: Notify Free Disk Space 2 (done)
         if: ${{ always() && !cancelled() && steps.free2.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -513,7 +515,7 @@ jobs:
         id: df1
         run: df -h
 
-      - name: Notify Check Disk Space (selesai)
+      - name: Notify Check Disk Space (done)
         if: ${{ always() && !cancelled() && steps.df1.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -532,7 +534,7 @@ jobs:
         with:
           swap-size-gb: 2
 
-      - name: Notify Set Swap Space (selesai)
+      - name: Notify Set Swap Space (done)
         if: ${{ always() && !cancelled() && steps.swap.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -540,9 +542,9 @@ jobs:
         run: bash /tmp/tgnotify.sh end "Set Swap Space" "${{ steps.swap.outcome }}" || true
 
       # =====================================================================
-      # CHECKOUT REPO INI - inilah device tree yang dipakai build.
-      # Hasilnya ada di ${{ github.workspace }}/device_tree, lalu di-copy
-      # ke device/xiaomi/Mi8953 pada step "Place Device Tree".
+      # CHECKOUT THIS REPO - this is the device tree used by the build.
+      # The result is in ${{ github.workspace }}/device_tree, then copied
+      # to device/xiaomi/Mi8953 in the "Place Device Tree" step.
       # =====================================================================
       - name: Notify Checkout Device Tree
         env:
@@ -556,7 +558,7 @@ jobs:
         with:
           path: device_tree
 
-      - name: Notify Checkout Device Tree (selesai)
+      - name: Notify Checkout Device Tree (done)
         if: ${{ always() && !cancelled() && steps.checkout.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -572,12 +574,12 @@ jobs:
       - name: Show Device Tree Revision
         id: dtrev
         run: |
-          echo "== Device tree dari repo ini =="
+          echo "== Device tree from this repo =="
           git -C "${{ env.DT_PATH }}" log -1 --format='%h %s (%an, %ad)' --date=short || true
           git -C "${{ env.DT_PATH }}" remote -v || true
-          echo "== Lunch target yang akan dipakai: ${{ env.LUNCH_TARGET }} =="
+          echo "== Lunch target to be used: ${{ env.LUNCH_TARGET }} =="
 
-      - name: Notify Show Device Tree Revision (selesai)
+      - name: Notify Show Device Tree Revision (done)
         if: ${{ always() && !cancelled() && steps.dtrev.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -593,7 +595,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "🚀 Build started - install dependencies" || true
+          bash /tmp/tgnotify.sh phase "Build started - install dependencies" || true
           bash /tmp/tgnotify.sh begin "Install Packages" || true
 
       - name: Install Packages
@@ -606,7 +608,7 @@ jobs:
             libxml2-utils xsltproc libssl-dev \
             build-essential ccache jq aria2 2>&1 | tee -a /tmp/full_build.log
 
-      - name: Notify Install Packages (selesai)
+      - name: Notify Install Packages (done)
         if: ${{ always() && !cancelled() && steps.install.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -630,27 +632,27 @@ jobs:
           chmod a+x ~/bin/repo
           echo "$HOME/bin" >> $GITHUB_PATH
 
-      - name: Notify Setup Repo Tool (selesai)
+      - name: Notify Setup Repo Tool (done)
         if: ${{ always() && !cancelled() && steps.repotool.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: bash /tmp/tgnotify.sh end "Setup Repo Tool" "${{ steps.repotool.outcome }}" || true
 
-      - name: Notify Telegram - Syncing Sources
+      - name: Notify Telegram - Syncing Source
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "🔄 Syncing OrangeFox source." || true
-          bash /tmp/tgnotify.sh begin "Sync OrangeFox Sources" || true
+          bash /tmp/tgnotify.sh phase "Syncing OrangeFox source." || true
+          bash /tmp/tgnotify.sh begin "Sync OrangeFox Source" || true
 
       # =====================================================================
-      # SYNC SOURCE OrangeFox memakai script resminya (OrangeFox/sync).
-      # Script ini: repo init minimal-manifest TWRP (twrp-12.1) -> patch
-      # build system -> clone bootable/Recovery & vendor/recovery OrangeFox.
-      # Device tree TIDAK disentuh di sini (lihat step berikutnya).
-      # SYNC_BRANCH diturunkan dari FOX_BRANCH (fox_12.1 -> 12.1).
+      # SYNC OrangeFox SOURCE using its official script (OrangeFox/sync).
+      # This script: repo init of the TWRP minimal-manifest (twrp-12.1) ->
+      # patch build system -> clone OrangeFox bootable/Recovery & vendor/recovery.
+      # The device tree is NOT touched here (see the next step).
+      # SYNC_BRANCH is derived from FOX_BRANCH (fox_12.1 -> 12.1).
       # =====================================================================
       - name: Sync OrangeFox Source (orangefox_sync.sh)
         id: sync
@@ -667,7 +669,7 @@ jobs:
 
           bash orangefox_sync.sh --branch "$SYNC_BRANCH" --path "${{ env.SYNC_PATH }}" 2>&1 | tee -a /tmp/full_build.log
 
-      - name: Notify Sync OrangeFox Sources (selesai)
+      - name: Notify Sync OrangeFox Source (done)
         if: ${{ always() && !cancelled() && steps.sync.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -684,7 +686,7 @@ jobs:
         id: df2
         run: df -h
 
-      - name: Notify Check Disk Space (selesai)
+      - name: Notify Check Disk Space (done)
         if: ${{ always() && !cancelled() && steps.df2.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -692,10 +694,10 @@ jobs:
         run: bash /tmp/tgnotify.sh end "Check Disk Space" "${{ steps.df2.outcome }}" || true
 
       # =====================================================================
-      # TEMPATKAN DEVICE TREE DARI REPO INI ke device/xiaomi/Mi8953.
-      # Ini pengganti "clone device tree" di workflow referensi: isinya
-      # murni hasil checkout repo ini (BoardConfig.mk, recovery/root,
-      # prebuilt kernel, vendorsetup.sh, dst).
+      # PLACE THE DEVICE TREE FROM THIS REPO into device/xiaomi/Mi8953.
+      # This replaces the "clone device tree" step of the reference workflow:
+      # its content is purely the checkout of this repo (BoardConfig.mk,
+      # recovery/root, prebuilt kernel, vendorsetup.sh, etc).
       # =====================================================================
       - name: Notify Place Device Tree
         env:
@@ -708,16 +710,16 @@ jobs:
         run: |
           set -e
           DEST="${{ env.SYNC_PATH }}/${{ env.DT_DEST }}"
-          echo "== Menyalin device tree dari checkout repo ini -> $DEST =="
+          echo "== Copying device tree from this repo checkout -> $DEST =="
           rm -rf "$DEST"
           mkdir -p "$DEST"
           rsync -a --exclude='.git' --exclude='.github' "${{ env.DT_PATH }}/" "$DEST/"
 
-          echo "== Verifikasi =="
-          test -f "$DEST/BoardConfig.mk" || { echo "BoardConfig.mk tidak ada"; exit 1; }
-          test -f "$DEST/ofox_Mi8953.mk" || { echo "ofox_Mi8953.mk tidak ada"; exit 1; }
-          test -f "$DEST/vendorsetup.sh" || { echo "vendorsetup.sh tidak ada"; exit 1; }
-          test -f "$DEST/prebuilt/Image.gz-dtb" || { echo "prebuilt kernel tidak ada"; exit 1; }
+          echo "== Verification =="
+          test -f "$DEST/BoardConfig.mk" || { echo "BoardConfig.mk is missing"; exit 1; }
+          test -f "$DEST/ofox_Mi8953.mk" || { echo "ofox_Mi8953.mk is missing"; exit 1; }
+          test -f "$DEST/vendorsetup.sh" || { echo "vendorsetup.sh is missing"; exit 1; }
+          test -f "$DEST/prebuilt/Image.gz-dtb" || { echo "prebuilt kernel is missing"; exit 1; }
 
           echo "-- PRODUCT_MAKEFILES --"
           grep -A1 PRODUCT_MAKEFILES "$DEST/AndroidProducts.mk"
@@ -726,7 +728,7 @@ jobs:
           echo "-- Isi direktori --"
           ls -la "$DEST"
 
-      - name: Notify Place Device Tree (selesai)
+      - name: Notify Place Device Tree (done)
         if: ${{ always() && !cancelled() && steps.place.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -734,9 +736,10 @@ jobs:
         run: bash /tmp/tgnotify.sh end "Place Device Tree" "${{ steps.place.outcome }}" || true
 
       # =====================================================================
-      # Magisk terbaru - persis logika workflow referensi: query API GitHub
-      # rilis terbaru, download .apk, rename jadi .zip (file .apk Magisk
-      # juga file zip), dipakai lewat FOX_USE_SPECIFIC_MAGISK_ZIP saat build.
+      # Latest Magisk - exactly the reference workflow logic: query the GitHub
+      # API for the latest release, download the .apk, rename it to .zip (the
+      # Magisk .apk is also a zip file), used via FOX_USE_SPECIFIC_MAGISK_ZIP
+      # during the build.
       # =====================================================================
       - name: Notify Download Latest Magisk
         if: ${{ inputs.use_latest_magisk }}
@@ -752,12 +755,12 @@ jobs:
           set -e
           mkdir -p "$HOME/Magisk"
           cd "$HOME/Magisk"
-          echo "== Cari URL rilis Magisk terbaru =="
-          # "|| true" di ujung pipeline: shell CI memakai pipefail, dan
-          # "jq | head -1" bisa kena SIGPIPE walau hasilnya valid
+          echo "== Looking up the latest Magisk release URL =="
+          # "|| true" at the end of the pipeline: the CI shell uses pipefail, and
+          # "jq | head -1" can hit SIGPIPE even when the result is valid
           LATEST_MAGISK_URL="$(curl -sL https://api.github.com/repos/topjohnwu/Magisk/releases/latest | jq -r '.assets[] | select(.name | test("Magisk-v.*\\.apk$")) | .browser_download_url' | head -1 || true)"
           if [ -z "$LATEST_MAGISK_URL" ] || [ "$LATEST_MAGISK_URL" = "null" ]; then
-            echo "Gagal menemukan rilis Magisk terbaru, lanjut tanpa Magisk custom"
+            echo "Failed to find the latest Magisk release, continuing without custom Magisk"
             exit 0
           fi
           echo "URL: $LATEST_MAGISK_URL"
@@ -772,7 +775,7 @@ jobs:
             echo "MAGISK_ZIP=$MAGISK_ZIP" >> "$GITHUB_ENV"
           fi
 
-      - name: Notify Download Latest Magisk (selesai)
+      - name: Notify Download Latest Magisk (done)
         if: ${{ always() && !cancelled() && steps.magisk.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -789,7 +792,7 @@ jobs:
         id: df3
         run: df -h
 
-      - name: Notify Check Disk Space (selesai)
+      - name: Notify Check Disk Space (done)
         if: ${{ always() && !cancelled() && steps.df3.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -801,7 +804,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "⚙️ Compiling OrangeFox..." || true
+          bash /tmp/tgnotify.sh phase "Compiling OrangeFox..." || true
           bash /tmp/tgnotify.sh begin "Start Disk Monitor" || true
 
       - name: Start Disk Monitor
@@ -813,7 +816,7 @@ jobs:
           (
             ALERTED=false
             while true; do
-              echo "=== $(date +%H:%M:%S) ===" >> /tmp/disk_monitor.log
+              echo "=== $(TZ=Asia/Jakarta date +%H:%M:%S) WIB ===" >> /tmp/disk_monitor.log
               df -h >> /tmp/disk_monitor.log
               echo "" >> /tmp/disk_monitor.log
 
@@ -822,7 +825,7 @@ jobs:
 
               if [ "$USAGE" -ge 85 ] && [ "$ALERTED" = false ]; then
                 ALERTED=true
-                bash /tmp/tgnotify.sh warn "Disk kritis: ${USAGE}% terpakai (sisa ${AVAIL}) - build berisiko gagal" || true
+                bash /tmp/tgnotify.sh warn "Disk critical: ${USAGE}% used (${AVAIL} left) - build may fail" || true
               fi
 
               sleep 120
@@ -830,7 +833,7 @@ jobs:
           ) &
           echo "DISK_MONITOR_PID=$!" >> $GITHUB_ENV
 
-      - name: Notify Start Disk Monitor (selesai)
+      - name: Notify Start Disk Monitor (done)
         if: ${{ always() && !cancelled() && steps.dmon.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -842,24 +845,24 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "⚙️ Compiling" || true
+          bash /tmp/tgnotify.sh phase "Compiling" || true
           bash /tmp/tgnotify.sh begin "Start Build" || true
 
       # =====================================================================
-      # BUILD - mengikuti alur build.sh resmi OrangeFox:
+      # BUILD - follows the official OrangeFox build.sh flow:
       #   source envsetup.sh -> lunch -> mka <target>
-      # Var OrangeFox di-export LANGSUNG di sini (sebelum envsetup) sebagai
-      # jaminan, karena guard vendorsetup.sh (BASH_SOURCE/BASH_ARGV) tidak
-      # selalu kepicu di environment CI. Nilainya sama dengan vendorsetup.sh
-      # di device tree repo ini.
+      # OrangeFox vars are exported DIRECTLY here (before envsetup) as a
+      # guarantee, because the vendorsetup.sh guard (BASH_SOURCE/BASH_ARGV)
+      # is not always triggered in the CI environment. The values are the
+      # same as in vendorsetup.sh of this repo's device tree.
       #
-      # lunch pakai produk buatan repo ini: ofox_Mi8953-eng
-      # (orangefox.mk memangkas prefix utk FOX_DEVICE_MODEL, dan script
-      #  OrangeFox memakai `cut -d_ -f2` -> tetap dapat "Mi8953", jadi
-      #  nama output & pengecekan installer tetap: ...-Mi8953.img/.zip)
+      # lunch uses the product defined by this repo: ofox_Mi8953-eng
+      # (orangefox.mk trims the prefix for FOX_DEVICE_MODEL, and the
+      #  OrangeFox script uses `cut -d_ -f2` -> still gets "Mi8953", so
+      #  the output names & installer checks stay: ...-Mi8953.img/.zip)
       #
-      # Build dijalankan di background supaya step ini bisa meng-edit pesan
-      # Telegram tiap 1 detik -> durasi compile berjalan REALTIME.
+      # The build runs in the background so this step can edit the Telegram
+      # message every 1 second -> compile duration runs in REALTIME.
       # =====================================================================
       - name: Start Build
         id: build
@@ -880,20 +883,20 @@ jobs:
             export FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER=1
             export LC_ALL=C
 
-            # Building Tip I resmi: export FOX_BUILD_DEVICE sebelum build
+            # Official Building Tip I: export FOX_BUILD_DEVICE before building
             export FOX_BUILD_DEVICE="${{ env.DEVICE }}"
 
-            # Identitas build
+            # Build identity
             export OF_MAINTAINER="${{ inputs.maintainer }}"
             export FOX_BUILD_TYPE="${{ env.OF_BUILD_TYPE }}"
 
-            # Fallback eksplisit (jangan cuma andalkan guard vendorsetup.sh)
+            # Explicit fallback (do not rely only on the vendorsetup.sh guard)
             export OF_PATCH_AVB20=1
             export FOX_RECOVERY_SYSTEM_PARTITION="/dev/block/mapper/system"
             export FOX_RECOVERY_VENDOR_PARTITION="/dev/block/mapper/vendor"
             export OF_ENABLE_ALL_PARTITION_TOOLS=1
             export OF_FORCE_PREBUILT_KERNEL=1
-            # Zip installer harus lolos device-check di vince/mido/ysl
+            # The installer zip must pass the device check on vince/mido/ysl
             export TARGET_DEVICE_ALT="mi8953,vince,mido,ysl"
             export FOX_TARGET_DEVICES="Mi8953,mi8953,vince,mido,ysl"
 
@@ -912,12 +915,12 @@ jobs:
             set -e
 
             if ! type lunch &>/dev/null; then
-              echo "❌ lunch tidak ditemukan - envsetup gagal" | tee -a /tmp/full_build.log
+              echo "❌ lunch not found - envsetup failed" | tee -a /tmp/full_build.log
               exit 1
             fi
 
             if ! lunch "${{ env.LUNCH_TARGET }}"; then
-              echo "❌ lunch ${{ env.LUNCH_TARGET }} gagal" | tee -a /tmp/full_build.log
+              echo "❌ lunch ${{ env.LUNCH_TARGET }} failed" | tee -a /tmp/full_build.log
               exit 1
             fi
 
@@ -925,11 +928,11 @@ jobs:
             echo "TARGET_DEVICE=$TARGET_DEVICE" | tee -a /tmp/full_build.log
 
             if [ "$TARGET_PRODUCT" != "${{ env.EXPECTED_PRODUCT }}" ]; then
-              echo "❌ TARGET_PRODUCT salah: $TARGET_PRODUCT (diharapkan ${{ env.EXPECTED_PRODUCT }})" | tee -a /tmp/full_build.log
+              echo "❌ Wrong TARGET_PRODUCT: $TARGET_PRODUCT (expected ${{ env.EXPECTED_PRODUCT }})" | tee -a /tmp/full_build.log
               exit 1
             fi
 
-            echo "== Fox env tersimpan di /tmp/$TARGET_DEVICE/fox_env.sh =="
+            echo "== Fox env saved at /tmp/$TARGET_DEVICE/fox_env.sh =="
             ls -la "/tmp/$TARGET_DEVICE/fox_env.sh" 2>/dev/null || true
 
             mka -j$(nproc --all) "${{ inputs.target }}" 2>&1 | tee logs/build.txt | tee -a /tmp/full_build.log
@@ -938,7 +941,7 @@ jobs:
           run_build &
           BUILD_PID=$!
 
-          # real-time: update pesan Telegram tiap 1 detik selama compile jalan
+          # real-time: update the Telegram message every 1 second while compiling
           while kill -0 "$BUILD_PID" 2>/dev/null; do
             bash /tmp/tgnotify.sh tick || true
             sleep 1
@@ -950,12 +953,12 @@ jobs:
           set -e
 
           if [ "$BUILD_RC" -ne 0 ]; then
-            echo "❌ Build gagal (exit code $BUILD_RC)" | tee -a /tmp/full_build.log
+            echo "❌ Build failed (exit code $BUILD_RC)" | tee -a /tmp/full_build.log
             exit "$BUILD_RC"
           fi
-          echo "✅ Build selesai"
+          echo "✅ Build finished"
 
-      - name: Notify Start Build (with log) (selesai)
+      - name: Notify Start Build (with log) (done)
         if: ${{ always() && !cancelled() && steps.build.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -968,7 +971,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "📦 Pasca-build - packing" || true
+          bash /tmp/tgnotify.sh phase "Packing" || true
           bash /tmp/tgnotify.sh begin "Stop Disk Monitor & Save Log" || true
 
       - name: Stop Disk Monitor & Save Log
@@ -976,12 +979,12 @@ jobs:
         if: always()
         run: |
           kill "$DISK_MONITOR_PID" 2>/dev/null || true
-          echo "=== FINAL $(date +%H:%M:%S) ===" >> /tmp/disk_monitor.log
+          echo "=== FINAL $(TZ=Asia/Jakarta date +%H:%M:%S) WIB ===" >> /tmp/disk_monitor.log
           df -h >> /tmp/disk_monitor.log
           mkdir -p "${{ env.SYNC_PATH }}/debug-info"
           cp /tmp/disk_monitor.log "${{ env.SYNC_PATH }}/debug-info/disk_monitor.log" 2>/dev/null || true
 
-      - name: Notify Stop Disk Monitor & Save Log (selesai)
+      - name: Notify Stop Disk Monitor & Save Log (done)
         if: ${{ always() && !cancelled() && steps.dmonstop.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1000,7 +1003,7 @@ jobs:
         if: always()
         run: df -h
 
-      - name: Notify Check Disk Space (selesai)
+      - name: Notify Check Disk Space (done)
         if: ${{ always() && !cancelled() && steps.df4.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1023,7 +1026,7 @@ jobs:
           path: ${{ env.SYNC_PATH }}/logs/build.txt
           if-no-files-found: warn
 
-      - name: Notify Upload Build Log (selesai)
+      - name: Notify Upload Build Log (done)
         if: ${{ always() && !cancelled() && steps.uplog.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1044,18 +1047,18 @@ jobs:
         run: |
           mkdir -p debug-info
           OUT=out/target/product/${{ env.DEVICE }}/recovery/root/system/etc
-          cp -v "$OUT/twrp.flags" debug-info/twrp.flags.final 2>/dev/null || echo "twrp.flags.final: tidak ditemukan" > debug-info/twrp.flags.final
-          cp -v "$OUT/recovery.fstab" debug-info/recovery.fstab.final 2>/dev/null || echo "recovery.fstab.final: tidak ditemukan" > debug-info/recovery.fstab.final
+          cp -v "$OUT/twrp.flags" debug-info/twrp.flags.final 2>/dev/null || echo "twrp.flags.final: not found" > debug-info/twrp.flags.final
+          cp -v "$OUT/recovery.fstab" debug-info/recovery.fstab.final 2>/dev/null || echo "recovery.fstab.final: not found" > debug-info/recovery.fstab.final
           cp -v "device/${{ env.DT_DEST }}/BoardConfig.mk" debug-info/BoardConfig.mk.used 2>/dev/null || true
           cp -v "device/${{ env.DT_DEST }}/vendorsetup.sh" debug-info/vendorsetup.sh.used 2>/dev/null || true
           {
-            echo "Built at: $(date)"
+            echo "Built at: $(TZ=Asia/Jakarta date +'%Y-%m-%d %H:%M:%S WIB')"
             echo "TARGET_PRODUCT=ofox_${{ env.DEVICE }}"
             echo "FOX_BRANCH=${{ env.FOX_BRANCH }}"
             echo "DT_REVISION=$(git -C "${{ env.DT_PATH }}" rev-parse --short HEAD 2>/dev/null || echo n/a)"
           } > debug-info/build-meta.txt
 
-      - name: Notify Collect Debug Info (selesai)
+      - name: Notify Collect Debug Info (done)
         if: ${{ always() && !cancelled() && steps.dbg1.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1078,7 +1081,7 @@ jobs:
           path: ${{ env.SYNC_PATH }}/debug-info
           if-no-files-found: warn
 
-      - name: Notify Upload Debug Info (selesai)
+      - name: Notify Upload Debug Info (done)
         if: ${{ always() && !cancelled() && steps.dbg2.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1100,7 +1103,7 @@ jobs:
           name: ofox-mi8953-recovery
           path: ${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/recovery.img
 
-      - name: Notify Upload recovery.img (selesai)
+      - name: Notify Upload recovery.img (done)
         if: ${{ always() && !cancelled() && steps.upimg.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1123,7 +1126,7 @@ jobs:
           path: ${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/OrangeFox*.img
           if-no-files-found: warn
 
-      - name: Notify Upload OrangeFox image (selesai)
+      - name: Notify Upload OrangeFox image (done)
         if: ${{ always() && !cancelled() && steps.upofx1.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1146,20 +1149,20 @@ jobs:
           path: ${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/OrangeFox*.zip
           if-no-files-found: warn
 
-      - name: Notify Upload OrangeFox zip (selesai)
+      - name: Notify Upload OrangeFox zip (done)
         if: ${{ always() && !cancelled() && steps.upofx2.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: bash /tmp/tgnotify.sh end "Upload OrangeFox zip" "${{ steps.upofx2.outcome }}" || true
 
-      - name: Notify Telegram - Build Success (mulai)
+      - name: Notify Telegram - Build Success (start)
         if: success()
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "✅ Build sukses" || true
+          bash /tmp/tgnotify.sh phase "Build succeeded" || true
           bash /tmp/tgnotify.sh begin "Done" || true
 
       - name: Notify Telegram - Build Success
@@ -1170,10 +1173,10 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           IMG_SIZE=$(du -sh "${{ env.SYNC_PATH }}/out/target/product/${{ env.DEVICE }}/recovery.img" 2>/dev/null | cut -f1 || true)
-          DISK_FINAL=$(df -h / | tail -1 | awk '{print "terpakai "$5" (sisa "$4")"}')
+          DISK_FINAL=$(df -h / | tail -1 | awk '{print "used "$5" ("$4" left)"}')
           bash /tmp/tgnotify.sh verdict success "${IMG_SIZE:-N/A}" "$DISK_FINAL" || true
 
-      - name: Notify Telegram - Build Success (selesai)
+      - name: Notify Telegram - Build Success (done)
         if: ${{ always() && !cancelled() && steps.bsuccess.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1181,7 +1184,7 @@ jobs:
         run: bash /tmp/tgnotify.sh end "Done" "${{ steps.bsuccess.outcome }}" || true
 
       # =====================================================================
-      # FAILURE HANDLERS - semuanya tetap di pesan Telegram yang sama.
+      # FAILURE HANDLERS - all still in the same Telegram message.
       # =====================================================================
       - name: Notify Send Disk Monitor Log to Telegram on Failure
         if: ${{ failure() && !cancelled() }}
@@ -1202,10 +1205,10 @@ jobs:
             curl -s -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
               -F chat_id="${TG_CHAT_ID}" \
               -F document=@/tmp/disk_monitor.log \
-              -F caption="💾 Disk usage log tiap 2 menit selama build (OrangeFox Mi8953, FAILED)"
+              -F caption="💾 Disk usage log every 2 minutes during the build (OrangeFox Mi8953, FAILED)"
           fi
 
-      - name: Notify Send Disk Monitor Log to Telegram on Failure (selesai)
+      - name: Notify Send Disk Monitor Log to Telegram on Failure (done)
         if: ${{ always() && !cancelled() && steps.dmfail.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1228,7 +1231,7 @@ jobs:
         run: |
           if [ -z "${TG_BOT_TOKEN:-}" ] || [ -z "${TG_CHAT_ID:-}" ]; then exit 0; fi
           if [ -f /tmp/tg_log_uploaded ]; then
-            echo "Build log sudah dikirim tepat saat step gagal - skip duplikat."
+            echo "Build log was already sent right when the step failed - skipping duplicate."
             exit 0
           fi
           mkdir -p "${{ env.SYNC_PATH }}/logs"
@@ -1253,21 +1256,21 @@ jobs:
               -F caption="📄 Full build log - OrangeFox Mi8953 (FAILED)"
           fi
 
-      - name: Notify Upload Full Log to Telegram on Failure (selesai)
+      - name: Notify Upload Full Log to Telegram on Failure (done)
         if: ${{ always() && !cancelled() && steps.fullfail.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: bash /tmp/tgnotify.sh end "Upload Full Log to Telegram on Failure" "${{ steps.fullfail.outcome }}" || true
 
-      - name: Notify Telegram - Build Failed (mulai)
+      - name: Notify Telegram - Build Failed (start)
         if: ${{ failure() && !cancelled() }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "❌ Build gagal - laporan dikirim" || true
-          bash /tmp/tgnotify.sh begin "Notify Telegram - Build Failed" || true
+          bash /tmp/tgnotify.sh phase "Build Failed" || true
+          bash /tmp/tgnotify.sh begin "Failed" || true
 
       - name: Notify Telegram - Build Failed
         id: bfailed
@@ -1276,10 +1279,10 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          DISK_FINAL=$(df -h / | tail -1 | awk '{print "terpakai "$5" (sisa "$4")"}' 2>/dev/null || echo "N/A")
+          DISK_FINAL=$(df -h / | tail -1 | awk '{print "used "$5" ("$4" left)"}' 2>/dev/null || echo "N/A")
           bash /tmp/tgnotify.sh verdict failure "N/A" "$DISK_FINAL" || true
 
-      - name: Notify Telegram - Build Failed (selesai)
+      - name: Notify Telegram - Build Failed (done)
         if: ${{ always() && !cancelled() && steps.bfailed.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -1287,8 +1290,8 @@ jobs:
         run: bash /tmp/tgnotify.sh end "Notify Telegram - Build Failed" "${{ steps.bfailed.outcome }}" || true
 
       # =====================================================================
-      # FINALISASI: matikan ticker, bereskan baris yang belum ditutup,
-      # kirim verdict terakhir (jika belum ada) -> pesan Telegram final.
+      # FINALIZE: stop the ticker, close any unfinished lines,
+      # send the last verdict (if not sent yet) -> final Telegram message.
       # =====================================================================
       - name: Finalize Telegram Status
         if: always()
