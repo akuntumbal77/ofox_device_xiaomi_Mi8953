@@ -38,7 +38,7 @@ on:
       maintainer:
         description: "Nama maintainer (OF_MAINTAINER) yang tampil di recovery"
         required: false
-        default: "RenzAlt"
+        default: "Rahmat Sobrian"
       target:
         description: "Make target"
         required: false
