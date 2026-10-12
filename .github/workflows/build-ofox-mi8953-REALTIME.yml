@@ -894,6 +894,9 @@ jobs:
             export FOX_RECOVERY_VENDOR_PARTITION="/dev/block/mapper/vendor"
             export OF_ENABLE_ALL_PARTITION_TOOLS=1
             export OF_FORCE_PREBUILT_KERNEL=1
+            # Zip installer harus lolos device-check di vince/mido/ysl
+            export TARGET_DEVICE_ALT="mi8953,vince,mido,ysl"
+            export FOX_TARGET_DEVICES="Mi8953,mi8953,vince,mido,ysl"
 
             if [ -n "${MAGISK_ZIP:-}" ]; then
               export FOX_USE_SPECIFIC_MAGISK_ZIP="$MAGISK_ZIP"
