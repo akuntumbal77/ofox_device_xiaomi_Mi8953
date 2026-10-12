@@ -52,7 +52,7 @@ if [ "$1" = "$FDEVICE" -o "$FOX_BUILD_DEVICE" = "$FDEVICE" ]; then
 	# ---- Identitas build ----
 	# Nilai default saja: kalau sudah di-export dari luar (mis. input
 	# workflow GitHub Actions / env shell lokal), nilai luar yang dipakai.
-	export OF_MAINTAINER="${OF_MAINTAINER:-RenzAlt}"
+	export OF_MAINTAINER="${OF_MAINTAINER:-RahmatSobrian}"
 	export FOX_BUILD_TYPE="${FOX_BUILD_TYPE:-Unofficial-CI}"
 
 	# ---- Device-check zip installer OrangeFox ----
