@@ -126,13 +126,12 @@ jobs:
           build_text() {
             local now out label st status en dur
             now=$(date +%s)
-            out="🦊 OrangeFox Build — Mi8953 (${FOX_BRANCH:-fox_12.1})"
+            out="🦊 OrangeFox Build - Mi8953 (${FOX_BRANCH:-fox_12.1})"
             out="$out
           📱 Device: Xiaomi Mi8953 unified (mido/vince/ysl)
           🎯 Lunch: ${LUNCH_TARGET:-ofox_Mi8953-eng}
           🕒 Mulai: ${TG_START_TIME:-n/a}
-          📌 Status: $( [ -f "$PHASE" ] && cat "$PHASE" || printf 'berjalan...' )
-          🔗 ${TG_RUN_URL:-}"
+          📌 Status: $( [ -f "$PHASE" ] && cat "$PHASE" || printf 'berjalan...' )"
             if [ -f "$WARN" ]; then
               while IFS= read -r w; do
                 [ -n "$w" ] || continue
@@ -149,15 +148,15 @@ jobs:
                   ok)
                     dur=$((${en:-$now} - ${st:-$now}))
                     out="$out
-          ✅ ${label} — $(hms "$dur")" ;;
+          ✅ ${label} - $(hms "$dur")" ;;
                   fail)
                     dur=$((${en:-$now} - ${st:-$now}))
                     out="$out
-          ❌ ${label} — $(hms "$dur")" ;;
+          ❌ ${label} - $(hms "$dur")" ;;
                   *)
                     dur=$((now - ${st:-$now}))
                     out="$out
-          🔄 ${label} — $(hms "$dur")" ;;
+          🔄 ${label} - $(hms "$dur")" ;;
                 esac
               done <"$STATE"
             fi
@@ -317,11 +316,11 @@ jobs:
             fi
             size=$(du -m "$f" 2>/dev/null | cut -f1 || true)
             case "$size" in ''|*[!0-9]*) size=0 ;; esac
-            cap="📄 Build log OrangeFox Mi8953 — gagal di: ${why}"
+            cap="📄 Build log OrangeFox Mi8953 - gagal di: ${why}"
             if [ "$size" -gt 45 ]; then
               if gzip -kf "$f"; then
                 f="${f}.gz"
-                cap="📄 Build log OrangeFox Mi8953 (kompresi) — gagal di: ${why}"
+                cap="📄 Build log OrangeFox Mi8953 (kompresi) - gagal di: ${why}"
               fi
             fi
             curl -s -m 180 -X POST "https://api.telegram.org/bot${TG_BOT_TOKEN}/sendDocument" \
@@ -342,15 +341,15 @@ jobs:
             [ "$dur" -ge 0 ] 2>/dev/null || dur=0
             case "$k" in
               success)
-                printf '✅ BUILD SUCCESS — total %s\n📦 Image: %s\n💾 Disk: %s\n📥 Artefak: recovery.img • OrangeFox-*.zip • build-log' \
+                printf '✅ BUILD SUCCESS - total %s' \
                   "$(hms "$dur")" "${e1:-N/A}" "${e2:-N/A}" >"$VERDICT"
                 ;;
               failure)
-                printf '❌ BUILD FAILED — total %s\n💾 Disk: %s\n📄 Build log sudah dikirim ke Telegram / ada di artifacts' \
+                printf '❌ BUILD FAILED - total %s\n💾 Disk: %s\n📄 Build log sudah dikirim ke Telegram / ada di artifacts' \
                   "$(hms "$dur")" "${e2:-N/A}" >"$VERDICT"
                 ;;
               cancelled)
-                printf '⏹️ BUILD CANCELLED — total %s' "$(hms "$dur")" >"$VERDICT"
+                printf '⏹️ BUILD CANCELLED - total %s' "$(hms "$dur")" >"$VERDICT"
                 ;;
               *)
                 return 0
@@ -436,7 +435,7 @@ jobs:
             "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
             "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             "${{ env.LUNCH_TARGET }}" "${{ env.FOX_BRANCH }}" "$(date +%s)" > /tmp/tg_meta.env
-          bash /tmp/tgnotify.sh phase "🚀 Build started — menyiapkan environment" || true
+          bash /tmp/tgnotify.sh phase "🚀 Build started - menyiapkan environment" || true
           bash /tmp/tgnotify.sh begin "Set up job" || true
 
       - name: Notify Set up job (selesai)
@@ -450,13 +449,13 @@ jobs:
       # Ruang disk: fox_12.1 butuh ~45GB, runner GitHub cuma punya ~20GB.
       # Dua action dibuang-bersih seperti workflow referensi.
       # =====================================================================
-      - name: Notify Free Disk Space (Ubuntu)
+      - name: Notify Free Disk Space 1
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Free Disk Space (Ubuntu)" || true
+        run: bash /tmp/tgnotify.sh begin "Free Disk Space 1" || true
 
-      - name: Free Disk Space (Ubuntu)
+      - name: Free Disk Space 1
         id: free1
         uses: insightsengineering/disk-space-reclaimer@v1
         with:
@@ -468,20 +467,20 @@ jobs:
           swap-storage: true
           docker-images: true
 
-      - name: Notify Free Disk Space (Ubuntu) (selesai)
+      - name: Notify Free Disk Space 1 (selesai)
         if: ${{ always() && !cancelled() && steps.free1.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Free Disk Space (Ubuntu)" "${{ steps.free1.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Free Disk Space 1" "${{ steps.free1.outcome }}" || true
 
-      - name: Notify Free Disk Space
+      - name: Notify Free Disk Space 2
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Free Disk Space" || true
+        run: bash /tmp/tgnotify.sh begin "Free Disk Space 2" || true
 
-      - name: Free Disk Space
+      - name: Free Disk Space 2
         id: free2
         uses: endersonmenezes/free-disk-space@v3
         with:
@@ -497,29 +496,29 @@ jobs:
           rmz_version: "3.1.1"
           testing: false
 
-      - name: Notify Free Disk Space (selesai)
+      - name: Notify Free Disk Space 2 (selesai)
         if: ${{ always() && !cancelled() && steps.free2.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Free Disk Space" "${{ steps.free2.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Free Disk Space 2" "${{ steps.free2.outcome }}" || true
 
-      - name: Notify Check Disk Space (after reclaim)
+      - name: Notify Check Disk Space
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Check Disk Space (after reclaim)" || true
+        run: bash /tmp/tgnotify.sh begin "Check Disk Space" || true
 
-      - name: Check Disk Space (after reclaim)
+      - name: Check Disk Space
         id: df1
         run: df -h
 
-      - name: Notify Check Disk Space (after reclaim) (selesai)
+      - name: Notify Check Disk Space (selesai)
         if: ${{ always() && !cancelled() && steps.df1.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Check Disk Space (after reclaim)" "${{ steps.df1.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Check Disk Space" "${{ steps.df1.outcome }}" || true
 
       - name: Notify Set Swap Space
         env:
@@ -545,24 +544,24 @@ jobs:
       # Hasilnya ada di ${{ github.workspace }}/device_tree, lalu di-copy
       # ke device/xiaomi/Mi8953 pada step "Place Device Tree".
       # =====================================================================
-      - name: Notify Checkout Device Tree (repo ini)
+      - name: Notify Checkout Device Tree
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Checkout Device Tree (repo ini)" || true
+        run: bash /tmp/tgnotify.sh begin "Checkout Device Tree" || true
 
-      - name: Checkout Device Tree (repo ini)
+      - name: Checkout Device Tree
         id: checkout
         uses: actions/checkout@v4
         with:
           path: device_tree
 
-      - name: Notify Checkout Device Tree (repo ini) (selesai)
+      - name: Notify Checkout Device Tree (selesai)
         if: ${{ always() && !cancelled() && steps.checkout.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Checkout Device Tree (repo ini)" "${{ steps.checkout.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Checkout Device Tree" "${{ steps.checkout.outcome }}" || true
 
       - name: Notify Show Device Tree Revision
         env:
@@ -594,7 +593,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "🚀 Build started — install dependencies" || true
+          bash /tmp/tgnotify.sh phase "🚀 Build started - install dependencies" || true
           bash /tmp/tgnotify.sh begin "Install Packages" || true
 
       - name: Install Packages
@@ -643,7 +642,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "🔄 Syncing OrangeFox sources (bagian paling lama)..." || true
+          bash /tmp/tgnotify.sh phase "🔄 Syncing OrangeFox source." || true
           bash /tmp/tgnotify.sh begin "Sync OrangeFox Sources" || true
 
       # =====================================================================
@@ -653,7 +652,7 @@ jobs:
       # Device tree TIDAK disentuh di sini (lihat step berikutnya).
       # SYNC_BRANCH diturunkan dari FOX_BRANCH (fox_12.1 -> 12.1).
       # =====================================================================
-      - name: Sync OrangeFox Sources (orangefox_sync.sh)
+      - name: Sync OrangeFox Source (orangefox_sync.sh)
         id: sync
         run: |
           set -e
@@ -673,24 +672,24 @@ jobs:
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Sync OrangeFox Sources" "${{ steps.sync.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Sync OrangeFox Source" "${{ steps.sync.outcome }}" || true
 
-      - name: Notify Check Disk Space (after sync)
+      - name: Notify Check Disk Space
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Check Disk Space (after sync)" || true
+        run: bash /tmp/tgnotify.sh begin "Check Disk Space" || true
 
       - name: Check Disk Space (after sync)
         id: df2
         run: df -h
 
-      - name: Notify Check Disk Space (after sync) (selesai)
+      - name: Notify Check Disk Space (selesai)
         if: ${{ always() && !cancelled() && steps.df2.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Check Disk Space (after sync)" "${{ steps.df2.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Check Disk Space" "${{ steps.df2.outcome }}" || true
 
       # =====================================================================
       # TEMPATKAN DEVICE TREE DARI REPO INI ke device/xiaomi/Mi8953.
@@ -698,13 +697,13 @@ jobs:
       # murni hasil checkout repo ini (BoardConfig.mk, recovery/root,
       # prebuilt kernel, vendorsetup.sh, dst).
       # =====================================================================
-      - name: Notify Place Device Tree (dari repo ini)
+      - name: Notify Place Device Tree
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Place Device Tree (dari repo ini)" || true
+        run: bash /tmp/tgnotify.sh begin "Place Device Tree" || true
 
-      - name: Place Device Tree (dari repo ini)
+      - name: Place Device Tree
         id: place
         run: |
           set -e
@@ -727,12 +726,12 @@ jobs:
           echo "-- Isi direktori --"
           ls -la "$DEST"
 
-      - name: Notify Place Device Tree (dari repo ini) (selesai)
+      - name: Notify Place Device Tree (selesai)
         if: ${{ always() && !cancelled() && steps.place.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Place Device Tree (dari repo ini)" "${{ steps.place.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Place Device Tree" "${{ steps.place.outcome }}" || true
 
       # =====================================================================
       # Magisk terbaru - persis logika workflow referensi: query API GitHub
@@ -780,22 +779,22 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: bash /tmp/tgnotify.sh end "Download Latest Magisk" "${{ steps.magisk.outcome }}" || true
 
-      - name: Notify Check Disk Space (before compile)
+      - name: Notify Check Disk Space
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Check Disk Space (before compile)" || true
+        run: bash /tmp/tgnotify.sh begin "Check Disk Space" || true
 
-      - name: Check Disk Space (before compile)
+      - name: Check Disk Space
         id: df3
         run: df -h
 
-      - name: Notify Check Disk Space (before compile) (selesai)
+      - name: Notify Check Disk Space (selesai)
         if: ${{ always() && !cancelled() && steps.df3.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Check Disk Space (before compile)" "${{ steps.df3.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Check Disk Space" "${{ steps.df3.outcome }}" || true
 
       - name: Notify Telegram - Compiling
         env:
@@ -803,9 +802,9 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
           bash /tmp/tgnotify.sh phase "⚙️ Compiling OrangeFox..." || true
-          bash /tmp/tgnotify.sh begin "Start Disk Monitor (background)" || true
+          bash /tmp/tgnotify.sh begin "Start Disk Monitor" || true
 
-      - name: Start Disk Monitor (background)
+      - name: Start Disk Monitor
         id: dmon
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
@@ -823,7 +822,7 @@ jobs:
 
               if [ "$USAGE" -ge 85 ] && [ "$ALERTED" = false ]; then
                 ALERTED=true
-                bash /tmp/tgnotify.sh warn "Disk kritis: ${USAGE}% terpakai (sisa ${AVAIL}) — build berisiko gagal" || true
+                bash /tmp/tgnotify.sh warn "Disk kritis: ${USAGE}% terpakai (sisa ${AVAIL}) - build berisiko gagal" || true
               fi
 
               sleep 120
@@ -831,20 +830,20 @@ jobs:
           ) &
           echo "DISK_MONITOR_PID=$!" >> $GITHUB_ENV
 
-      - name: Notify Start Disk Monitor (background) (selesai)
+      - name: Notify Start Disk Monitor (selesai)
         if: ${{ always() && !cancelled() && steps.dmon.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Start Disk Monitor (background)" "${{ steps.dmon.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Start Disk Monitor" "${{ steps.dmon.outcome }}" || true
 
-      - name: Notify Start Build (with log)
+      - name: Notify Start Build
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "⚙️ Compiling — durasi realtime jalan tiap 1 detik di bawah ↓" || true
-          bash /tmp/tgnotify.sh begin "Start Build (with log)" || true
+          bash /tmp/tgnotify.sh phase "⚙️ Compiling" || true
+          bash /tmp/tgnotify.sh begin "Start Build" || true
 
       # =====================================================================
       # BUILD - mengikuti alur build.sh resmi OrangeFox:
@@ -862,7 +861,7 @@ jobs:
       # Build dijalankan di background supaya step ini bisa meng-edit pesan
       # Telegram tiap 1 detik -> durasi compile berjalan REALTIME.
       # =====================================================================
-      - name: Start Build (with log)
+      - name: Start Build
         id: build
         working-directory: ${{ env.SYNC_PATH }}
         env:
@@ -961,7 +960,7 @@ jobs:
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Start Build (with log)" "${{ steps.build.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Start Build" "${{ steps.build.outcome }}" || true
 
       - name: Notify Stop Disk Monitor & Save Log
         if: ${{ always() && !cancelled() }}
@@ -969,7 +968,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "📦 Pasca-build — packing & upload artefak" || true
+          bash /tmp/tgnotify.sh phase "📦 Pasca-build - packing" || true
           bash /tmp/tgnotify.sh begin "Stop Disk Monitor & Save Log" || true
 
       - name: Stop Disk Monitor & Save Log
@@ -989,24 +988,24 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: bash /tmp/tgnotify.sh end "Stop Disk Monitor & Save Log" "${{ steps.dmonstop.outcome }}" || true
 
-      - name: Notify Check Disk Space (after compile)
+      - name: Notify Check Disk Space
         if: ${{ always() && !cancelled() }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh begin "Check Disk Space (after compile)" || true
+        run: bash /tmp/tgnotify.sh begin "Check Disk Space" || true
 
-      - name: Check Disk Space (after compile)
+      - name: Check Disk Space
         id: df4
         if: always()
         run: df -h
 
-      - name: Notify Check Disk Space (after compile) (selesai)
+      - name: Notify Check Disk Space (selesai)
         if: ${{ always() && !cancelled() && steps.df4.outcome != 'skipped' }}
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Check Disk Space (after compile)" "${{ steps.df4.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Check Disk Space" "${{ steps.df4.outcome }}" || true
 
       - name: Notify Upload Build Log
         if: ${{ always() && !cancelled() }}
@@ -1160,8 +1159,8 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "✅ Build sukses — artefak siap diunduh" || true
-          bash /tmp/tgnotify.sh begin "Notify Telegram - Build Success" || true
+          bash /tmp/tgnotify.sh phase "✅ Build sukses" || true
+          bash /tmp/tgnotify.sh begin "Done" || true
 
       - name: Notify Telegram - Build Success
         id: bsuccess
@@ -1179,7 +1178,7 @@ jobs:
         env:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
-        run: bash /tmp/tgnotify.sh end "Notify Telegram - Build Success" "${{ steps.bsuccess.outcome }}" || true
+        run: bash /tmp/tgnotify.sh end "Done" "${{ steps.bsuccess.outcome }}" || true
 
       # =====================================================================
       # FAILURE HANDLERS - semuanya tetap di pesan Telegram yang sama.
@@ -1267,7 +1266,7 @@ jobs:
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: |
-          bash /tmp/tgnotify.sh phase "❌ Build gagal — laporan dikirim" || true
+          bash /tmp/tgnotify.sh phase "❌ Build gagal - laporan dikirim" || true
           bash /tmp/tgnotify.sh begin "Notify Telegram - Build Failed" || true
 
       - name: Notify Telegram - Build Failed
