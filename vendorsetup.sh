@@ -55,6 +55,14 @@ if [ "$1" = "$FDEVICE" -o "$FOX_BUILD_DEVICE" = "$FDEVICE" ]; then
 	export OF_MAINTAINER="${OF_MAINTAINER:-RenzAlt}"
 	export FOX_BUILD_TYPE="${FOX_BUILD_TYPE:-Unofficial-CI}"
 
+	# ---- Device-check zip installer OrangeFox ----
+	# Installer zip cuma nge-assert TARGET_DEVICE (= "Mi8953", nama produk
+	# tree ini) kalau gak ada alias. Padahal di recovery, ro.product.device
+	# diisi codename ASLI (vince/mido/ysl) oleh set-device-props.sh, jadi
+	# zip nolak flash. Daftarkan semua codename keluarga mi8953 di sini.
+	export TARGET_DEVICE_ALT="mi8953,vince,mido,ysl"
+	export FOX_TARGET_DEVICES="Mi8953,mi8953,vince,mido,ysl"
+
 	# ---- Device Xiaomi A-only dengan MIUI: cegah recovery stok MIUI
 	# menimpa OrangeFox saat boot ke ROM (Building Tip D resmi) ----
 	export OF_PATCH_AVB20=1

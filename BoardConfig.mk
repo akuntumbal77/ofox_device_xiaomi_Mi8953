@@ -110,6 +110,9 @@ TW_INCLUDE_REPACKTOOLS := true
 TW_IGNORE_MISC_WIPE_DATA := true
 TW_NEW_ION_HEAP := true
 TW_HAS_EDL_MODE := true
+
+# CPU temperature (path sysfs - tanpa kutip, Android.mk recovery yang nge-quote)
+TW_CUSTOM_CPU_TEMP_PATH := /sys/class/thermal/thermal_zone11/temp
 TW_EXCLUDE_APEX := true
 TW_INCLUDE_RESETPROP := true
 
